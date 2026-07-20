@@ -796,6 +796,9 @@ function clearData(){
 // SAMPLE DATA LOADER
 // ================================================================
 function loadSampleData(){
+  // Cảnh báo trước khi ghi đè data đang có
+  const _a=document.getElementById('input-agent'),_c=document.getElementById('input-csat');
+  if((_a.value.trim()||_c.value.trim()) && !confirm('Thao tác này sẽ GHI ĐÈ data đang nhập bằng Sample Data (W28). Tiếp tục?')) return;
   // Minimal sample from documents provided
   const agentSample = `Week\tDate\tAgent Name\tAgent Email\tChannel\tTeam\tUsertype\tCSAT WTD\tRepeated\tBottom Monthly\tTreatment\tRepeats weekly\tTeam
 28\t13/7/2026\t03. CH.B Pham Hoang Mai Trang\ttrang.phamhoangmai1.cs@shopeemobile-external.com\t*\tCH.B\tBuyer\t67.97%\t1\tNO\tCO 1:1\t\tChat
@@ -868,7 +871,7 @@ function updateWeekLabels(){
   const W=G.curWeek||'?';
   document.getElementById('dash-meta').innerHTML=`MCVN QA &nbsp;·&nbsp; Tuần hiện tại: <b>W${W}</b> &nbsp;·&nbsp; CSAT weeks: ${G.csatWeeks.join(', ')||'—'}`;
   document.getElementById('rp-week-lbl').textContent='W'+W;
-  document.getElementById('rp-meta').innerHTML=`Action Update · <b>W${W}</b>`;
+  document.getElementById('rp-meta').innerHTML=`Action Update · <b>W${W}</b> &nbsp;·&nbsp; đang có <b>${G.curAgents.length}</b> agents · CSAT: ${G.csatWeeks.join(', ')||'—'}`;
   document.getElementById('footer-week').textContent=`W${W} · ${new Date().toLocaleDateString('vi-VN')}`;
   document.getElementById('hist-meta').innerHTML=`W${W} Repeated agents · CSAT source: CSAT Weekly`;
   // Week column headers
@@ -948,14 +951,15 @@ function buildSummaryData(){
 
   // Build by lần
   const maxLan=Math.max(0,...repCur.map(a=>a.repeated));
+  const lanMax=Math.max(6,maxLan); // luôn hiện Lần 1..6 (chu kỳ repeated 6 tuần); mở rộng nếu có agent lặp nhiều hơn
   const lanGroups=[];
-  for(let l=1;l<=maxLan;l++){
+  for(let l=1;l<=lanMax;l++){
     const lCur=repCur.filter(a=>a.repeated===l);
     const lUp=lCur.filter(a=>a.wow>0);
     const lDown=lCur.filter(a=>a.wow<0);
     const s=grpStats(lCur);
     lanGroups.push({
-      label:`Lần ${l}`, agents:lCur.length, wow:wowCalc(lCur), csat:s.csat, depth:1,
+      label:`Lần ${l}`, agents:lCur.length||'—', wow:lCur.length?wowCalc(lCur):null, csat:s.csat, depth:1,
       sub:[
         {label:'Giảm WoW',agents:lDown.length||'—',wow:lDown.length?wowCalc(lDown):null,csat:grpStats(lDown).csat,depth:2},
         {label:'Tăng WoW',agents:lUp.length||'—',wow:lUp.length?wowCalc(lUp):null,csat:grpStats(lUp).csat,depth:2},
@@ -1016,7 +1020,7 @@ function copySummaryTable(){
   function addLine(item){
     const prefix=item.depth===2?'      ':item.depth===1?'   ':'';
     const wow=item.wow==null?'—':item.wow>=0?`+${item.wow.toFixed(1)}% ▲`:`${item.wow.toFixed(1)}% ▼`;
-    const csats=(item.csat||[]).slice(0,4).map(c=>c!=null?c.toFixed(1)+'%':'—').join('\t');
+    const csats=Array.from({length:4},(_,i)=>{const c=item.csat?.[i];return c!=null?c.toFixed(1)+'%':'—';}).join('\t');
     lines.push(`${prefix}${item.label}\t${item.agents}\t${wow}\t${csats}`);
     if(item.sub)item.sub.forEach(s=>addLine(s));
   }
@@ -1239,9 +1243,10 @@ function renderReport(){
   }
   const totalRow=sumData[0];
   const parts=[blockEmoji('📊','Overall repeated list perf',totalRow)];
-  (totalRow?.sub||[]).forEach((sub,i)=>{
-    const emoji=i===0?'🔁':'🔁';
-    parts.push(blockEmoji(emoji,sub.label,sub));
+  (totalRow?.sub||[]).forEach((sub)=>{
+    // Bỏ qua các Lần rỗng (0 agent) để phần text tóm tắt không bị loãng
+    if(sub.label.startsWith('Lần') && (sub.agents==='—'||sub.agents===0)) return;
+    parts.push(blockEmoji('🔁',sub.label,sub));
   });
 
   // Section 1
@@ -1273,7 +1278,7 @@ function copyFullReport(){
   function addLine(item){
     const pre=item.depth===2?'      ':item.depth===1?'   ':'';
     const wow=item.wow==null?'—':item.wow>=0?`+${item.wow.toFixed(1)}% ▲`:`${item.wow.toFixed(1)}% ▼`;
-    const cs=(item.csat||[]).slice(0,4).map(c=>c!=null?c.toFixed(1)+'%':'—').join('\t');
+    const cs=Array.from({length:4},(_,i)=>{const c=item.csat?.[i];return c!=null?c.toFixed(1)+'%':'—';}).join('\t');
     tblLines.push(`${pre}${item.label}\t${item.agents}\t${wow}\t${cs}`);
     if(item.sub)item.sub.forEach(s=>addLine(s));
   }
