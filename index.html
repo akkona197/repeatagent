@@ -664,8 +664,14 @@ function compute(){
   });
 
   const weeks = Object.keys(G.snapshots).map(Number).sort((a,b)=>b-a);
-  G.curWeek = weeks[0]||null;
+  G.curWeek = weeks[0]||null;   // dùng để CHỌN snapshot data (theo cột Week của Agent List)
   G.prevWeek = weeks[1]||null;
+
+  // Tuần HIỂN THỊ (nhãn "Tuần hiện tại") lấy theo tuần CSAT mới nhất (chuẩn WEEKNUM),
+  // vì Agent List và CSAT có thể đánh số tuần khác nhau. Không ảnh hưởng logic chọn data.
+  const _wkNum = w=>{const m=/(\d+)/.exec(w||'');return m?+m[1]:null;};
+  G.dispWeek     = _wkNum(G.csatWeeks[0]) ?? G.curWeek;
+  G.dispPrevWeek = _wkNum(G.csatWeeks[1]) ?? G.prevWeek;
 
   G.curAgents  = G.snapshots[G.curWeek]||[];
   G.prevAgents = G.prevWeek ? (G.snapshots[G.prevWeek]||[]) : [];
@@ -868,7 +874,7 @@ function renderAll(){
 }
 
 function updateWeekLabels(){
-  const W=G.curWeek||'?';
+  const W=G.dispWeek||G.curWeek||'?';   // nhãn tuần hiển thị = tuần CSAT mới nhất
   document.getElementById('dash-meta').innerHTML=`MCVN QA &nbsp;·&nbsp; Tuần hiện tại: <b>W${W}</b> &nbsp;·&nbsp; CSAT weeks: ${G.csatWeeks.join(', ')||'—'}`;
   document.getElementById('rp-week-lbl').textContent='W'+W;
   document.getElementById('rp-meta').innerHTML=`Action Update · <b>W${W}</b> &nbsp;·&nbsp; đang có <b>${G.curAgents.length}</b> agents · CSAT: ${G.csatWeeks.join(', ')||'—'}`;
@@ -908,7 +914,7 @@ function renderKPIs(){
   const prevRep = G.prevAgents.filter(a=>a.repeated>=1);
   const exit = prevRep.filter(p=>!rep.some(r=>r.email===p.email));
 
-  const W=G.curWeek, PW=G.prevWeek;
+  const W=G.dispWeek||G.curWeek, PW=G.dispPrevWeek||G.prevWeek;   // nhãn tuần hiển thị theo CSAT
   const setKPI=(id,val,sub,delta,cls)=>{
     const el=document.getElementById(id); if(el)el.textContent=val;
     const es=document.getElementById(id+'-s'); if(es&&sub)es.textContent=sub;
