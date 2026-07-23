@@ -178,18 +178,19 @@ table.at tbody tr:last-child td{border-bottom:none}
 
 <div style="display:flex;align-items:center;gap:8px;margin-bottom:18px">
 <div class="page-nav">
-  <button class="pnav active" onclick="showPage('data',this)">Nhập Data</button>
-  <button class="pnav" id="nav-dashboard" onclick="showPage('dashboard',this)">Dashboard</button>
+  <button class="pnav active" id="nav-dashboard" onclick="showPage('dashboard',this)">Dashboard</button>
   <button class="pnav" id="nav-history" onclick="showPage('history',this)">CSAT History</button>
   <button class="pnav" id="nav-report" onclick="showPage('report',this)">Report</button>
 </div>
+<button class="theme-toggle" onclick="autoLoadData()" id="reload-btn" title="Tải lại data từ Google Sheet" style="font-size:15px">⟳</button>
+<span id="load-status" style="font-size:11px;color:var(--t2)"></span>
 <button class="theme-toggle" onclick="toggleTheme()" id="theme-btn" title="Chuyển sáng/tối">🌙</button>
 <div style="position:relative;display:inline-block">
   <button class="theme-toggle" onclick="toggleGuide()" title="Hướng dẫn nhanh" style="font-size:13px;font-weight:700">?</button>
   <div id="guide-tooltip" style="display:none;position:absolute;top:38px;left:50%;transform:translateX(-50%);background:var(--surf);border:1px solid var(--bdr2);border-radius:10px;padding:16px 18px;width:340px;z-index:999;box-shadow:0 8px 32px rgba(0,0,0,.4);font-size:12px;line-height:1.8;color:var(--t2)">
     <div style="font-weight:700;color:var(--text);margin-bottom:10px;font-size:13px">Hướng dẫn nhanh</div>
     <div style="display:flex;flex-direction:column;gap:8px">
-      <div><span style="color:var(--green);font-weight:600">1. Nhập Data</span> — Paste 2 file từ Sheets rồi bấm Parse &amp; Apply.</div>
+      <div><span style="color:var(--green);font-weight:600">1. Tự động</span> — Data tự kéo từ Google Sheet khi mở trang. Bấm ⟳ để tải lại (cần đăng nhập Shopee).</div>
       <div><span style="color:var(--blue);font-weight:600">2. Dashboard</span> — KPI, chart, bảng agent. Nhập Root Cause trực tiếp vào ô.</div>
       <div><span style="color:var(--acc);font-weight:600">3. Report</span> — Text auto-generate, copy từng phần hoặc copy tất cả.</div>
       <div style="margin-top:6px;padding:8px;background:rgba(240,201,74,.08);border-radius:6px;color:var(--warn);font-size:11px"><b>⚠ Tuần mới:</b> F5 trang trước khi paste data mới.</div>
@@ -200,8 +201,8 @@ table.at tbody tr:last-child td{border-bottom:none}
 </div>
 </div>
 
-<!-- =================== DATA INPUT =================== -->
-<div id="page-data" class="page active">
+<!-- =================== DATA (ẩn — data kéo tự động từ Google Sheet; textarea giữ làm buffer) =================== -->
+<div id="page-data" class="page">
   <div class="hdr">
     <div><h1>Nhập Data</h1>
     <div class="hdr-meta">Paste data từ Google Sheets vào đây · Dashboard tự động tính toán khi bấm <b>Parse &amp; Apply</b></div></div>
@@ -336,10 +337,10 @@ Row 1-5 có thể là header/meta — script sẽ tự detect header dòng có c
 </div>
 
 <!-- =================== DASHBOARD =================== -->
-<div id="page-dashboard" class="page">
+<div id="page-dashboard" class="page active">
   <div class="hdr">
     <div><h1>Repeated Agent — Rolling L6W</h1>
-    <div class="hdr-meta" id="dash-meta">Chưa có data · Vào tab <b>Nhập Data</b> để bắt đầu</div></div>
+    <div class="hdr-meta" id="dash-meta">Đang tải data từ Google Sheet…</div></div>
     <div class="filt">
       <div class="seg">
         <button class="seg-btn active" onclick="setTab('all',this)">All</button>
@@ -357,7 +358,7 @@ Row 1-5 có thể là header/meta — script sẽ tự detect header dòng có c
 
   <div id="dash-empty" class="empty-state">
     <div class="icon">📋</div>
-    <p>Chưa có data.<br>Vào tab <b>Nhập Data</b>, paste data từ Google Sheets và bấm <b>Parse &amp; Apply</b>.</p>
+    <p>Đang tải data từ Google Sheet…<br>Nếu lâu không hiện, bấm nút <b>⟳</b> trên thanh menu (cần đăng nhập tài khoản Shopee).</p>
   </div>
 
   <div id="dash-content" style="display:none">
@@ -1355,10 +1356,56 @@ function fetchFromSheet(which){   // which: 'agent' | 'csat' — dùng chung 1 U
   document.body.appendChild(s);
 }
 
+// ================================================================
+// AUTO-LOAD: kéo cả 2 file từ Google Sheet (Web App domain Shopee) khi mở trang
+// ================================================================
+const DEFAULT_SHEET_URL='https://script.google.com/a/macros/shopeemobile-external.com/s/AKfycbw6KojLCBxDYW6eM6HaRTcUaDUKF4ZYFhMBUAt6mTPYM8kGmF5YHKwcQhzF9TC7ih4QhQ/exec';
+
+function setLoadState(msg,kind){
+  const el=document.getElementById('load-status');
+  if(el){ el.innerHTML=msg||''; el.style.color = kind==='err'?'#e05252':kind==='ok'?'#3ec989':'var(--t2)'; }
+}
+
+function jsonpGet(which){   // JSONP để tránh CORS; cookie đăng nhập Shopee gửi kèm theo script request
+  return new Promise((resolve,reject)=>{
+    const cb='__sheetCb_'+Date.now()+'_'+which+'_'+Math.floor(Math.random()*1e6);
+    const s=document.createElement('script'); let done=false;
+    const cleanup=()=>{ try{delete window[cb];}catch(e){window[cb]=undefined;} s.remove(); clearTimeout(tm); };
+    const tm=setTimeout(()=>{ if(done)return; done=true; cleanup(); reject(new Error('Timeout — mạng chậm hoặc chưa đăng nhập')); },30000);
+    window[cb]=r=>{ if(done)return; done=true; cleanup(); resolve(r); };
+    s.onerror=()=>{ if(done)return; done=true; cleanup(); reject(new Error('auth')); };
+    s.src=DEFAULT_SHEET_URL+(DEFAULT_SHEET_URL.includes('?')?'&':'?')+'sheet='+which+'&callback='+cb+'&_='+Date.now();
+    document.body.appendChild(s);
+  });
+}
+
+async function autoLoadData(){
+  const btn=document.getElementById('reload-btn'); if(btn) btn.disabled=true;
+  setLoadState('⏳ Đang tải Agent List…');
+  try{
+    const a=await jsonpGet('agent');
+    if(!a||!a.ok) throw new Error('Agent List: '+((a&&a.error)||'không đọc được'));
+    document.getElementById('input-agent').value=a.tsv||'';
+    setLoadState('⏳ Đang tải CSAT Weekly…');
+    const c=await jsonpGet('csat');
+    if(!c||!c.ok) throw new Error('CSAT Weekly: '+((c&&c.error)||'không đọc được'));
+    document.getElementById('input-csat').value=c.tsv||'';
+    setLoadState('⏳ Đang xử lý…');
+    parseAndApply();
+    if(!G.ready) throw new Error('Tải được data nhưng parse lỗi — kiểm tra cột/format sheet');
+    setLoadState('✓ Đã tải data mới nhất ('+G.curAgents.length+' agents)','ok');
+    setTimeout(()=>setLoadState(''),5000);
+  }catch(err){
+    if(err.message==='auth'){
+      setLoadState('❌ Chưa đăng nhập Shopee / bị chặn cookie. <a href="'+DEFAULT_SHEET_URL+'" target="_blank" style="color:#5b9cf6">Mở đăng nhập</a> rồi bấm ⟳','err');
+    } else {
+      setLoadState('❌ '+err.message+' — bấm ⟳ để thử lại','err');
+    }
+  } finally { if(btn) btn.disabled=false; }
+}
+
 window.addEventListener('DOMContentLoaded',()=>{
-  // Khôi phục URL Web App đã lưu (nếu có)
-  const saved=localStorage.getItem('sheetWebAppUrl');
-  if(saved){ const el=document.getElementById('sheet-url'); if(el) el.value=saved; }
+  autoLoadData();   // tự kéo data ngay khi mở trang
 });
 </script>
 </body>
