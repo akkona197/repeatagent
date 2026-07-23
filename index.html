@@ -920,7 +920,7 @@ function renderAll(){
   document.getElementById('rp-content').style.display='block';
 }
 
-const BUILD_ID='CSAT-window-4';   // đổi mỗi lần deploy để biết trang đang chạy bản nào
+const BUILD_ID='utfilter-5';   // đổi mỗi lần deploy để biết trang đang chạy bản nào
 
 function updateWeekLabels(){
   const W=G.dispWeek||G.curWeek||'?';   // nhãn tuần hiển thị = tuần CSAT mới nhất
@@ -955,7 +955,12 @@ function getFilteredAgents(){
   });
 }
 function setTab(t,btn){activeTab=t;document.querySelectorAll('.seg-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');applyFilters();}
-function applyFilters(){renderKPIs();renderTable();}
+function applyFilters(){
+  // BUG cũ: activeUT không bao giờ được gán từ dropdown => lọc Usertype vô tác dụng
+  const _ut=document.getElementById('filter-ut');
+  activeUT = _ut ? (_ut.value||'all') : 'all';
+  renderKPIs(); renderTable();
+}
 
 function renderKPIs(){
   const all = getFilteredAgents();
