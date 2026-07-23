@@ -698,7 +698,7 @@ function compute(){
   // distinct theo email; mỗi CS lấy dòng ở lần xuất hiện GẦN NHẤT (= trạng thái Lần hiện tại).
   const _inWin = r => { if(!G.anchorDate) return r.week===G.curWeek; const d=_dmy(r.date); return d && d>=_winStart && d<=G.anchorDate; };
   const _byEmail = {};
-  rows.forEach(r=>{ if(!r.email||!_inWin(r)) return; const p=_byEmail[r.email]; if(!p || r.week>p.week) _byEmail[r.email]=r; });
+  rows.forEach(r=>{ if(!r.email||!_inWin(r)) return; const p=_byEmail[r.email]; if(!p || r.repeated>p.repeated || (r.repeated===p.repeated && r.week>p.week)) _byEmail[r.email]=r; });
   G.curAgents = Object.values(_byEmail);
 
   // Enrich curAgents with CSAT Weekly data
