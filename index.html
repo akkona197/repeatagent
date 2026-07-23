@@ -686,28 +686,22 @@ function compute(){
 
   G.prevAgents = G.prevWeek ? (G.snapshots[G.prevWeek]||[]) : [];
 
-  // ==== Chu kỳ 46 ngày (Rolling L6W) ====
-  // Parse date: hỗ trợ d/m/yyyy, m/d/yyyy (US), yyyy-mm-dd
-  const _dmy = s=>{
-    s=(s||'').trim();
-    if(!s)return null;
-    // yyyy-mm-dd
-    let m=s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
-    if(m)return new Date(+m[1],+m[2]-1,+m[3]);
-    // d/m/yyyy or m/d/yyyy — ưu tiên d/m/yyyy (ngày/tháng) nếu phần đầu <=12 ambiguous → dùng d/m
-    m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
-    if(m)return new Date(+m[3],+m[2]-1,+m[1]);
-    return null;
-  };  const _allDts = rows.map(r=>_dmy(r.date)).filter(Boolean).map(d=>d.getTime());
+  // ==== Cửa sổ Rolling L6W ====
+  // Lọc theo SỐ TUẦN (tương đối với tuần mới nhất), KHÔNG theo cột Date — vì cột Date trong
+  // Agent List có thể giống nhau ở mọi dòng, khiến lọc theo ngày lọt cả tuần cũ (W20...).
+  const _dmy = s=>{const m=/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/.exec((s||'').trim());return m?new Date(+m[3],+m[2]-1,+m[1]):null;};
+  const _allDts = rows.map(r=>_dmy(r.date)).filter(Boolean).map(d=>d.getTime());
   G.anchorDate = _allDts.length ? new Date(Math.max(..._allDts)) : null;
-  G.cycleDays = 46;
-  const _winStart = G.anchorDate ? new Date(G.anchorDate.getTime() - G.cycleDays*86400000) : null;
+  G.cycleWeeks = 6;                       // L6W = 6 tuần gần nhất (đổi thành 7 nếu muốn ~46 ngày)
+  const _minWeek = (G.curWeek!=null) ? G.curWeek-(G.cycleWeeks-1) : null;
+  G.windowWeeks = Object.keys(G.snapshots).map(Number)
+    .filter(w=>_minWeek==null || (w>=_minWeek && w<=G.curWeek)).sort((a,b)=>b-a);
 
-  // Danh sách CS của CẢ chu kỳ: gộp MỌI tuần trong 46 ngày (không chỉ tuần mới nhất),
-  // distinct theo email; mỗi CS lấy dòng ở lần xuất hiện GẦN NHẤT (= trạng thái Lần hiện tại).
-  const _inWin = r => { if(!G.anchorDate) return r.week===G.curWeek; const d=_dmy(r.date); return d && d>=_winStart && d<=G.anchorDate; };
+  // CS của cả chu kỳ: gộp MỌI tuần trong L6W (không chỉ tuần mới nhất), distinct theo email;
+  // mỗi CS lấy dòng ở lần xuất hiện GẦN NHẤT (= trạng thái Lần hiện tại).
+  const _inWin = r => _minWeek==null ? true : (r.week>=_minWeek && r.week<=G.curWeek);
   const _byEmail = {};
-  rows.forEach(r=>{ if(!r.email||!_inWin(r)) return; const p=_byEmail[r.email]; if(!p || r.repeated>p.repeated || (r.repeated===p.repeated && r.week>p.week)) _byEmail[r.email]=r; });
+  rows.forEach(r=>{ if(!r.email||!_inWin(r)) return; const p=_byEmail[r.email]; if(!p || r.week>p.week) _byEmail[r.email]=r; });
   G.curAgents = Object.values(_byEmail);
 
   // Enrich curAgents with CSAT Weekly data
@@ -915,7 +909,9 @@ function renderAll(){
 
 function updateWeekLabels(){
   const W=G.dispWeek||G.curWeek||'?';   // nhãn tuần hiển thị = tuần CSAT mới nhất
-  document.getElementById('dash-meta').innerHTML=`MCVN QA &nbsp;·&nbsp; Tuần hiện tại: <b>W${W}</b> &nbsp;·&nbsp; CSAT weeks: ${G.csatWeeks.join(', ')||'—'}`;
+  const _ww=G.windowWeeks||[];
+  const _wwStr=_ww.length?`W${_ww[_ww.length-1]}–W${_ww[0]} (${_ww.length} tuần)`:'—';
+  document.getElementById('dash-meta').innerHTML=`MCVN QA &nbsp;·&nbsp; Tuần hiện tại: <b>W${W}</b> &nbsp;·&nbsp; Đang tính L6W: <b>${_wwStr}</b> &nbsp;·&nbsp; CSAT weeks: ${G.csatWeeks.join(', ')||'—'}`;
   // Lưu ý: rp-meta bên dưới ghi đè cả cụm (gồm #rp-week-lbl), nên KHÔNG set rp-week-lbl ở đây
   // (nếu set sẽ lỗi null ở lần parse thứ 2 → renderAll đứt giữa chừng → bảng lệch với data).
   document.getElementById('rp-meta').innerHTML=`Action Update · <b>W${W}</b> &nbsp;·&nbsp; đang có <b>${G.curAgents.length}</b> agents · CSAT: ${G.csatWeeks.join(', ')||'—'}`;
