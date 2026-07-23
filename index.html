@@ -221,11 +221,11 @@ Cột cần có: Week | Date | Agent Name | Agent Email | Channel | Team | Usert
 Chỉ lấy rows có cột Repeated là số (0, 1, 2, 3) — bỏ qua dòng có '-'"></textarea>
         <div class="hint">Format: Tab-separated (copy thẳng từ Google Sheets). Cần có header row.</div>
         <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-          <input id="sheet-url" type="text" spellcheck="false" placeholder="Dán URL Web App (Apps Script) — lưu ở máy bạn, KHÔNG upload lên GitHub"
+          <input id="sheet-url" type="text" spellcheck="false" placeholder="Dán URL Web App (Apps Script) — dùng chung cho cả 2 file, lưu ở máy bạn, KHÔNG upload lên GitHub"
             style="flex:1;min-width:220px;font-size:11px;padding:6px 8px;border-radius:6px;border:1px solid var(--bdr);background:var(--s2);color:var(--text)">
-          <button class="btn btn-blue" style="font-size:11px;padding:6px 12px" onclick="fetchAgentFromSheet()">⟳ Kéo từ Google Sheet</button>
+          <button class="btn btn-blue" style="font-size:11px;padding:6px 12px" onclick="fetchFromSheet('agent')">⟳ Kéo Agent List</button>
         </div>
-        <div class="hint" style="margin-top:4px">Kéo trực tiếp vùng A6:M sheet "3. Agent list Weekly" (cần deploy Apps Script — xem hướng dẫn). URL chỉ lưu trên trình duyệt này.</div>
+        <div class="hint" style="margin-top:4px">Kéo trực tiếp vùng A6:M sheet "3. Agent list Weekly" (cần deploy Apps Script — xem hướng dẫn). URL dùng chung cho cả File 2, chỉ lưu trên trình duyệt này.</div>
       </div>
       <div id="preview-agent" class="parse-preview" style="display:none"></div>
     </div>
@@ -240,6 +240,10 @@ Cột cần có: Agent name | Agent email | BPO | Team | Full Team | Seniority |
 
 Row 1-5 có thể là header/meta — script sẽ tự detect header dòng có chứa 'Agent name'."></textarea>
         <div class="hint">Format: Tab-separated. Bao gồm header row có ngày (7/13/2026, 7/6/2026...) để xác định tuần.</div>
+        <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          <button class="btn btn-blue" style="font-size:11px;padding:6px 12px" onclick="fetchFromSheet('csat')">⟳ Kéo CSAT Weekly</button>
+          <span class="hint" style="margin:0">Dùng chung URL Web App đã nhập ở File 1 · vùng C1:S tab "CSAT_Weekly" (gồm cả dòng ngày & W29/W28…)</span>
+        </div>
       </div>
       <div id="preview-csat" class="parse-preview" style="display:none"></div>
     </div>
@@ -1321,31 +1325,33 @@ function copyFullReport(){
 // GOOGLE SHEET LINK (Apps Script Web App qua JSONP — tránh CORS)
 // URL Web App lưu ở localStorage (không commit lên repo public)
 // ================================================================
-function fetchAgentFromSheet(){
-  const inp=document.getElementById('sheet-url');
-  const url=(inp.value||'').trim();
+function fetchFromSheet(which){   // which: 'agent' | 'csat' — dùng chung 1 URL Web App
+  which = which==='csat' ? 'csat' : 'agent';
+  const url=((document.getElementById('sheet-url').value)||'').trim();
   if(!/^https:\/\/script\.google\.com\/.+/.test(url)){
-    toast('URL không hợp lệ — dán link Web App /exec của Apps Script');
+    toast('URL không hợp lệ — dán link Web App /exec của Apps Script (ở File 1)');
     return;
   }
   localStorage.setItem('sheetWebAppUrl', url);
-  const btnToast=()=>toast('Đang kéo từ Google Sheet...');
-  btnToast();
-  const cb='__sheetCb_'+Date.now();
+  const targetId = which==='csat' ? 'input-csat' : 'input-agent';
+  const otherId  = which==='csat' ? 'input-agent' : 'input-csat';
+  const label    = which==='csat' ? 'CSAT Weekly' : 'Agent List';
+  toast('Đang kéo '+label+'...');
+  const cb='__sheetCb_'+Date.now()+'_'+which;
   const s=document.createElement('script');
   let done=false;
   const cleanup=()=>{ try{delete window[cb];}catch(e){window[cb]=undefined;} s.remove(); clearTimeout(tm); };
   const tm=setTimeout(()=>{ if(done)return; done=true; cleanup(); toast('Timeout — kiểm tra URL / quyền truy cập Web App (Anyone)'); },25000);
   window[cb]=function(res){
     if(done)return; done=true; cleanup();
-    if(!res||!res.ok){ toast('Lỗi từ Sheet: '+((res&&res.error)||'không đọc được')); return; }
-    document.getElementById('input-agent').value=res.tsv||'';
-    toast('✓ Đã kéo '+(res.rows||0)+' dòng Agent List từ Sheet');
-    // Tự parse nếu File 2 (CSAT) đã có sẵn
-    if((document.getElementById('input-csat').value||'').trim()) parseAndApply();
+    if(!res||!res.ok){ toast('Lỗi từ Sheet ('+label+'): '+((res&&res.error)||'không đọc được')); return; }
+    document.getElementById(targetId).value=res.tsv||'';
+    toast('✓ Đã kéo '+(res.rows||0)+' dòng '+label);
+    // Tự parse khi cả 2 file đều đã có data
+    if((document.getElementById(otherId).value||'').trim()) parseAndApply();
   };
   s.onerror=()=>{ if(done)return; done=true; cleanup(); toast('Không gọi được Web App (URL sai hoặc chưa deploy Anyone?)'); };
-  s.src=url+(url.includes('?')?'&':'?')+'callback='+cb+'&_='+Date.now();
+  s.src=url+(url.includes('?')?'&':'?')+'sheet='+which+'&callback='+cb+'&_='+Date.now();
   document.body.appendChild(s);
 }
 
