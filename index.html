@@ -695,14 +695,24 @@ function compute(){
   const _dmy = s=>{const m=/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/.exec((s||'').trim());return m?new Date(+m[3],+m[2]-1,+m[1]):null;};
   const _allDts = rows.map(r=>_dmy(r.date)).filter(Boolean).map(d=>d.getTime());
   G.anchorDate = _allDts.length ? new Date(Math.max(..._allDts)) : null;
-  G.cycleWeeks = 6;                       // L6W = 6 tuần gần nhất (đổi thành 7 nếu muốn ~46 ngày)
-  const _minWeek = (G.curWeek!=null) ? G.curWeek-(G.cycleWeeks-1) : null;
+  // Cửa sổ lấy THEO CSAT (số tuần thật): chỉ nhận dòng Agent List có Week nằm trong dải tuần
+  // của file CSAT (vd CSAT W25–W30 => chỉ lấy W25..W30, bỏ W23/W24).
+  G.cycleWeeks = 6;
+  const _csatNums = (G.csatWeeks||[]).map(w=>_wkNum(w)).filter(n=>n!=null);
+  let _winMin=null, _winMax=null;
+  if(_csatNums.length){
+    _winMax = Math.max(..._csatNums);
+    _winMin = Math.min(..._csatNums);
+  } else if(G.curWeek!=null){                    // fallback khi không có file CSAT
+    _winMax = G.curWeek; _winMin = G.curWeek-(G.cycleWeeks-1);
+  }
+  G.winMin=_winMin; G.winMax=_winMax;
   G.windowWeeks = Object.keys(G.snapshots).map(Number)
-    .filter(w=>_minWeek==null || (w>=_minWeek && w<=G.curWeek)).sort((a,b)=>b-a);
+    .filter(w=>_winMin==null || (w>=_winMin && w<=_winMax)).sort((a,b)=>b-a);
 
-  // CS của cả chu kỳ: gộp MỌI tuần trong L6W (không chỉ tuần mới nhất), distinct theo email;
+  // CS của cả chu kỳ: gộp MỌI tuần trong cửa sổ (không chỉ tuần mới nhất), distinct theo email;
   // mỗi CS lấy dòng ở lần xuất hiện GẦN NHẤT (= trạng thái Lần hiện tại).
-  const _inWin = r => _minWeek==null ? true : (r.week>=_minWeek && r.week<=G.curWeek);
+  const _inWin = r => (_winMin==null) ? true : (r.week>=_winMin && r.week<=_winMax);
   const _byEmail = {};
   rows.forEach(r=>{ if(!r.email||!_inWin(r)) return; const p=_byEmail[r.email]; if(!p || r.week>p.week) _byEmail[r.email]=r; });
   G.curAgents = Object.values(_byEmail);
@@ -910,16 +920,15 @@ function renderAll(){
   document.getElementById('rp-content').style.display='block';
 }
 
-const BUILD_ID='L6W-week-3';   // đổi mỗi lần deploy để biết trang đang chạy bản nào
+const BUILD_ID='CSAT-window-4';   // đổi mỗi lần deploy để biết trang đang chạy bản nào
 
 function updateWeekLabels(){
   const W=G.dispWeek||G.curWeek||'?';   // nhãn tuần hiển thị = tuần CSAT mới nhất
-  // Agent List và CSAT đánh số tuần lệch nhau => quy đổi nhãn cửa sổ sang SỐ TUẦN THẬT (chuẩn CSAT)
+  // Cửa sổ lấy theo dải tuần CSAT (số tuần thật)
   const _ww=G.windowWeeks||[];
-  const _off=(G.dispWeek!=null&&G.curWeek!=null)?(G.dispWeek-G.curWeek):0;
-  const _loA=(G.curWeek!=null)?G.curWeek-((G.cycleWeeks||6)-1):null;
-  const _wwStr=(G.curWeek!=null)
-    ? `W${_loA+_off}–W${G.curWeek+_off} (${_ww.length}/${G.cycleWeeks||6} tuần có data)`
+  const _span=(G.winMin!=null&&G.winMax!=null)?(G.winMax-G.winMin+1):null;
+  const _wwStr=(G.winMin!=null)
+    ? `W${G.winMin}–W${G.winMax} (${_ww.length}/${_span} tuần có data)`
     : '—';
   document.getElementById('dash-meta').innerHTML=`MCVN QA &nbsp;·&nbsp; Tuần hiện tại: <b>W${W}</b> &nbsp;·&nbsp; Đang tính L6W: <b>${_wwStr}</b> &nbsp;·&nbsp; CSAT weeks: ${G.csatWeeks.join(', ')||'—'} &nbsp;·&nbsp; <span style="color:var(--t3)">build ${BUILD_ID}</span>`;
   // Lưu ý: rp-meta bên dưới ghi đè cả cụm (gồm #rp-week-lbl), nên KHÔNG set rp-week-lbl ở đây
