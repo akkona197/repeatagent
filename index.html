@@ -684,16 +684,22 @@ function compute(){
   G.dispWeek     = _wkNum(G.csatWeeks[0]) ?? G.curWeek;
   G.dispPrevWeek = _wkNum(G.csatWeeks[1]) ?? G.prevWeek;
 
-  G.curAgents  = G.snapshots[G.curWeek]||[];
   G.prevAgents = G.prevWeek ? (G.snapshots[G.prevWeek]||[]) : [];
 
-  // ==== Chu kỳ 46 ngày ====
-  // Mốc = ngày mới nhất trong Agent List (ngày báo cáo hiện tại).
-  // Agent có ngày BẮT ĐẦU lặp cách mốc > 46 ngày => coi như ngoài chu kỳ, loại khỏi list hiện tại.
+  // ==== Chu kỳ 46 ngày (Rolling L6W) ====
+  // Mốc = ngày mới nhất trong Agent List (ngày báo cáo). Cửa sổ = [mốc − 46 ngày, mốc].
   const _dmy = s=>{const m=/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/.exec((s||'').trim());return m?new Date(+m[3],+m[2]-1,+m[1]):null;};
   const _allDts = rows.map(r=>_dmy(r.date)).filter(Boolean).map(d=>d.getTime());
   G.anchorDate = _allDts.length ? new Date(Math.max(..._allDts)) : null;
   G.cycleDays = 46;
+  const _winStart = G.anchorDate ? new Date(G.anchorDate.getTime() - G.cycleDays*86400000) : null;
+
+  // Danh sách CS của CẢ chu kỳ: gộp MỌI tuần trong 46 ngày (không chỉ tuần mới nhất),
+  // distinct theo email; mỗi CS lấy dòng ở lần xuất hiện GẦN NHẤT (= trạng thái Lần hiện tại).
+  const _inWin = r => { if(!G.anchorDate) return r.week===G.curWeek; const d=_dmy(r.date); return d && d>=_winStart && d<=G.anchorDate; };
+  const _byEmail = {};
+  rows.forEach(r=>{ if(!r.email||!_inWin(r)) return; const p=_byEmail[r.email]; if(!p || r.week>p.week) _byEmail[r.email]=r; });
+  G.curAgents = Object.values(_byEmail);
 
   // Enrich curAgents with CSAT Weekly data
   G.curAgents.forEach(a=>{
@@ -748,10 +754,7 @@ function compute(){
     // csat history sparkline
     a.csat_history = G.csatWeeks.map(w=>G.csatMap[a.email]?.[w]??null);
   });
-
-  // Loại agent ngoài chu kỳ 46 ngày khỏi list hiện tại (đồng bộ cho Total CS, KPI, bảng agent)
-  G.cycleExcluded = G.curAgents.filter(a=>!a.in_cycle).length;
-  G.curAgents = G.curAgents.filter(a=>a.in_cycle);
+  // curAgents đã là toàn bộ CS distinct trong cửa sổ 46 ngày (không lọc thêm).
 }
 
 // ================================================================
