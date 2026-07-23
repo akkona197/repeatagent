@@ -445,7 +445,7 @@ Row 1-5 có thể là header/meta — script sẽ tự detect header dòng có c
           <table class="sum-tbl"><thead><tr>
             <th style="text-align:left;min-width:230px">Repeated Agents</th>
             <th>Agents</th><th>WoW</th>
-            <th id="rp-sh-w1">W28</th><th id="rp-sh-w2">W27</th><th id="rp-sh-w3">W26</th><th id="rp-sh-w4">W25</th>
+            <th id="rp-sh-w1">W28</th><th id="rp-sh-w2">W27</th><th id="rp-sh-w3">W26</th><th id="rp-sh-w4">W25</th><th id="rp-sh-w5">W24</th><th id="rp-sh-w6">W23</th>
           </tr></thead><tbody id="rp-sum-tbody"></tbody></table>
         </div>
       </div>
@@ -920,7 +920,8 @@ function renderAll(){
   document.getElementById('rp-content').style.display='block';
 }
 
-const BUILD_ID='utfilter-5';   // đổi mỗi lần deploy để biết trang đang chạy bản nào
+const BUILD_ID='sum6cols-6';   // đổi mỗi lần deploy để biết trang đang chạy bản nào
+const SUM_WEEK_COLS=6;         // số cột tuần trong Bảng tổng hợp (khớp cửa sổ L6W)
 
 function updateWeekLabels(){
   const W=G.dispWeek||G.curWeek||'?';   // nhãn tuần hiển thị = tuần CSAT mới nhất
@@ -942,6 +943,8 @@ function updateWeekLabels(){
   ['sh-w2','rp-sh-w2'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=wks[1]||'W-1';});
   ['sh-w3','rp-sh-w3'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=wks[2]||'W-2';});
   ['sh-w4','rp-sh-w4'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=wks[3]||'W-3';});
+  ['sh-w5','rp-sh-w5'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=wks[4]||'W-4';});
+  ['sh-w6','rp-sh-w6'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=wks[5]||'W-5';});
 }
 
 // ================================================================
@@ -1062,7 +1065,7 @@ function renderTableRows(items,targetId){
       :item.wow>=0?`<span class="wow-pos">+${item.wow.toFixed(1)}% ▲</span>`
       :`<span class="wow-neg">${item.wow.toFixed(1)}% ▼</span>`;
     const agStr=item.agents==='—'||item.agents===0?'<span style="color:var(--t3)">—</span>':`<b>${item.agents}</b>`;
-    const csatCells=(item.csat||[null,null,null,null]).slice(0,4).map(c=>{
+    const csatCells=Array.from({length:SUM_WEEK_COLS},(_,i)=>(item.csat||[])[i]).map(c=>{
       if(c==null)return`<td style="color:var(--t3)">—</td>`;
       const cl=c>=90?'csat-hi':c>=80?'csat-mid':c>=70?'csat-lo':'csat-vlo';
       return`<td class="${cl}" style="font-weight:700">${c.toFixed(1)}%</td>`;
@@ -1083,11 +1086,11 @@ function renderSummaryTables(){
 function copySummaryTable(){
   const W=G.curWeek;
   const wks=G.csatWeeks;
-  let lines=[`Repeated Agents\tAgents\tWoW\t${wks[0]||'W'}\t${wks[1]||'W-1'}\t${wks[2]||'W-2'}\t${wks[3]||'W-3'}`];
+  let lines=[`Repeated Agents\tAgents\tWoW\t${Array.from({length:SUM_WEEK_COLS},(_,i)=>wks[i]||`W-${i}`).join('\t')}`];
   function addLine(item){
     const prefix=item.depth===2?'      ':item.depth===1?'   ':'';
     const wow=item.wow==null?'—':item.wow>=0?`+${item.wow.toFixed(1)}% ▲`:`${item.wow.toFixed(1)}% ▼`;
-    const csats=Array.from({length:4},(_,i)=>{const c=item.csat?.[i];return c!=null?c.toFixed(1)+'%':'—';}).join('\t');
+    const csats=Array.from({length:SUM_WEEK_COLS},(_,i)=>{const c=item.csat?.[i];return c!=null?c.toFixed(1)+'%':'—';}).join('\t');
     lines.push(`${prefix}${item.label}\t${item.agents}\t${wow}\t${csats}`);
     if(item.sub)item.sub.forEach(s=>addLine(s));
   }
@@ -1341,11 +1344,11 @@ function renderReport(){
 function copyFullReport(){
   const W=G.curWeek||'?';
   const wks=G.csatWeeks;
-  let tblLines=[`Repeated Agents\tAgents\tWoW\t${wks[0]||'W'}\t${wks[1]||'W-1'}\t${wks[2]||'W-2'}\t${wks[3]||'W-3'}`];
+  let tblLines=[`Repeated Agents\tAgents\tWoW\t${Array.from({length:SUM_WEEK_COLS},(_,i)=>wks[i]||`W-${i}`).join('\t')}`];
   function addLine(item){
     const pre=item.depth===2?'      ':item.depth===1?'   ':'';
     const wow=item.wow==null?'—':item.wow>=0?`+${item.wow.toFixed(1)}% ▲`:`${item.wow.toFixed(1)}% ▼`;
-    const cs=Array.from({length:4},(_,i)=>{const c=item.csat?.[i];return c!=null?c.toFixed(1)+'%':'—';}).join('\t');
+    const cs=Array.from({length:SUM_WEEK_COLS},(_,i)=>{const c=item.csat?.[i];return c!=null?c.toFixed(1)+'%':'—';}).join('\t');
     tblLines.push(`${pre}${item.label}\t${item.agents}\t${wow}\t${cs}`);
     if(item.sub)item.sub.forEach(s=>addLine(s));
   }
