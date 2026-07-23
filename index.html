@@ -687,9 +687,18 @@ function compute(){
   G.prevAgents = G.prevWeek ? (G.snapshots[G.prevWeek]||[]) : [];
 
   // ==== Chu kỳ 46 ngày (Rolling L6W) ====
-  // Mốc = ngày mới nhất trong Agent List (ngày báo cáo). Cửa sổ = [mốc − 46 ngày, mốc].
-  const _dmy = s=>{const m=/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/.exec((s||'').trim());return m?new Date(+m[3],+m[2]-1,+m[1]):null;};
-  const _allDts = rows.map(r=>_dmy(r.date)).filter(Boolean).map(d=>d.getTime());
+  // Parse date: hỗ trợ d/m/yyyy, m/d/yyyy (US), yyyy-mm-dd
+  const _dmy = s=>{
+    s=(s||'').trim();
+    if(!s)return null;
+    // yyyy-mm-dd
+    let m=s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+    if(m)return new Date(+m[1],+m[2]-1,+m[3]);
+    // d/m/yyyy or m/d/yyyy — ưu tiên d/m/yyyy (ngày/tháng) nếu phần đầu <=12 ambiguous → dùng d/m
+    m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if(m)return new Date(+m[3],+m[2]-1,+m[1]);
+    return null;
+  };  const _allDts = rows.map(r=>_dmy(r.date)).filter(Boolean).map(d=>d.getTime());
   G.anchorDate = _allDts.length ? new Date(Math.max(..._allDts)) : null;
   G.cycleDays = 46;
   const _winStart = G.anchorDate ? new Date(G.anchorDate.getTime() - G.cycleDays*86400000) : null;
