@@ -910,12 +910,17 @@ function renderAll(){
   document.getElementById('rp-content').style.display='block';
 }
 
-const BUILD_ID='L6W-week-2';   // đổi mỗi lần deploy để biết trang đang chạy bản nào
+const BUILD_ID='L6W-week-3';   // đổi mỗi lần deploy để biết trang đang chạy bản nào
 
 function updateWeekLabels(){
   const W=G.dispWeek||G.curWeek||'?';   // nhãn tuần hiển thị = tuần CSAT mới nhất
+  // Agent List và CSAT đánh số tuần lệch nhau => quy đổi nhãn cửa sổ sang SỐ TUẦN THẬT (chuẩn CSAT)
   const _ww=G.windowWeeks||[];
-  const _wwStr=_ww.length?`W${_ww[_ww.length-1]}–W${_ww[0]} (${_ww.length} tuần)`:'—';
+  const _off=(G.dispWeek!=null&&G.curWeek!=null)?(G.dispWeek-G.curWeek):0;
+  const _loA=(G.curWeek!=null)?G.curWeek-((G.cycleWeeks||6)-1):null;
+  const _wwStr=(G.curWeek!=null)
+    ? `W${_loA+_off}–W${G.curWeek+_off} (${_ww.length}/${G.cycleWeeks||6} tuần có data)`
+    : '—';
   document.getElementById('dash-meta').innerHTML=`MCVN QA &nbsp;·&nbsp; Tuần hiện tại: <b>W${W}</b> &nbsp;·&nbsp; Đang tính L6W: <b>${_wwStr}</b> &nbsp;·&nbsp; CSAT weeks: ${G.csatWeeks.join(', ')||'—'} &nbsp;·&nbsp; <span style="color:var(--t3)">build ${BUILD_ID}</span>`;
   // Lưu ý: rp-meta bên dưới ghi đè cả cụm (gồm #rp-week-lbl), nên KHÔNG set rp-week-lbl ở đây
   // (nếu set sẽ lỗi null ở lần parse thứ 2 → renderAll đứt giữa chừng → bảng lệch với data).
