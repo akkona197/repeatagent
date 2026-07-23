@@ -676,6 +676,14 @@ function compute(){
   G.curAgents  = G.snapshots[G.curWeek]||[];
   G.prevAgents = G.prevWeek ? (G.snapshots[G.prevWeek]||[]) : [];
 
+  // ==== Chu kỳ 46 ngày ====
+  // Mốc = ngày mới nhất trong Agent List (ngày báo cáo hiện tại).
+  // Agent có ngày BẮT ĐẦU lặp cách mốc > 46 ngày => coi như ngoài chu kỳ, loại khỏi list hiện tại.
+  const _dmy = s=>{const m=/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/.exec((s||'').trim());return m?new Date(+m[3],+m[2]-1,+m[1]):null;};
+  const _allDts = rows.map(r=>_dmy(r.date)).filter(Boolean).map(d=>d.getTime());
+  G.anchorDate = _allDts.length ? new Date(Math.max(..._allDts)) : null;
+  G.cycleDays = 46;
+
   // Enrich curAgents with CSAT Weekly data
   G.curAgents.forEach(a=>{
     const cs = G.csatMap[a.email]||{};
@@ -714,8 +722,13 @@ function compute(){
     }
 
     // forecast
-    const firstRepWk = rows.filter(r=>r.email===a.email&&r.repeated>=1).map(r=>r.week).sort((x,y)=>x-y)[0]||a.week;
+    const _repRows = rows.filter(r=>r.email===a.email&&r.repeated>=1).sort((x,y)=>x.week-y.week);
+    const firstRepWk = _repRows[0]?.week || a.week;
     a.first_repeat_week = firstRepWk;
+    a.first_repeat_date = _repRows[0]?.date || a.date;
+    // Trong chu kỳ 46 ngày? (ngày bắt đầu lặp cách mốc hiện tại <= 46 ngày)
+    const _frd=_dmy(a.first_repeat_date);
+    a.in_cycle = (!G.anchorDate||!_frd) ? true : ((G.anchorDate-_frd)/86400000 <= G.cycleDays);
     a.cycle_end = firstRepWk+5;
     a.forecast_remove = a.cycle_end > G.curWeek ? 'W'+a.cycle_end : 'Cycle đủ 6W';
     // movement
@@ -724,6 +737,10 @@ function compute(){
     // csat history sparkline
     a.csat_history = G.csatWeeks.map(w=>G.csatMap[a.email]?.[w]??null);
   });
+
+  // Loại agent ngoài chu kỳ 46 ngày khỏi list hiện tại (đồng bộ cho Total CS, KPI, bảng agent)
+  G.cycleExcluded = G.curAgents.filter(a=>!a.in_cycle).length;
+  G.curAgents = G.curAgents.filter(a=>a.in_cycle);
 }
 
 // ================================================================
@@ -876,7 +893,8 @@ function renderAll(){
 function updateWeekLabels(){
   const W=G.dispWeek||G.curWeek||'?';   // nhãn tuần hiển thị = tuần CSAT mới nhất
   document.getElementById('dash-meta').innerHTML=`MCVN QA &nbsp;·&nbsp; Tuần hiện tại: <b>W${W}</b> &nbsp;·&nbsp; CSAT weeks: ${G.csatWeeks.join(', ')||'—'}`;
-  document.getElementById('rp-week-lbl').textContent='W'+W;
+  // Lưu ý: rp-meta bên dưới ghi đè cả cụm (gồm #rp-week-lbl), nên KHÔNG set rp-week-lbl ở đây
+  // (nếu set sẽ lỗi null ở lần parse thứ 2 → renderAll đứt giữa chừng → bảng lệch với data).
   document.getElementById('rp-meta').innerHTML=`Action Update · <b>W${W}</b> &nbsp;·&nbsp; đang có <b>${G.curAgents.length}</b> agents · CSAT: ${G.csatWeeks.join(', ')||'—'}`;
   document.getElementById('footer-week').textContent=`W${W} · ${new Date().toLocaleDateString('vi-VN')}`;
   document.getElementById('hist-meta').innerHTML=`W${W} Repeated agents · CSAT source: CSAT Weekly`;
