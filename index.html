@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>Repeated Agent Dashboard — MCVN QA</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1" integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ" crossorigin="anonymous"></script>
 <style>
@@ -907,11 +910,13 @@ function renderAll(){
   document.getElementById('rp-content').style.display='block';
 }
 
+const BUILD_ID='L6W-week-2';   // đổi mỗi lần deploy để biết trang đang chạy bản nào
+
 function updateWeekLabels(){
   const W=G.dispWeek||G.curWeek||'?';   // nhãn tuần hiển thị = tuần CSAT mới nhất
   const _ww=G.windowWeeks||[];
   const _wwStr=_ww.length?`W${_ww[_ww.length-1]}–W${_ww[0]} (${_ww.length} tuần)`:'—';
-  document.getElementById('dash-meta').innerHTML=`MCVN QA &nbsp;·&nbsp; Tuần hiện tại: <b>W${W}</b> &nbsp;·&nbsp; Đang tính L6W: <b>${_wwStr}</b> &nbsp;·&nbsp; CSAT weeks: ${G.csatWeeks.join(', ')||'—'}`;
+  document.getElementById('dash-meta').innerHTML=`MCVN QA &nbsp;·&nbsp; Tuần hiện tại: <b>W${W}</b> &nbsp;·&nbsp; Đang tính L6W: <b>${_wwStr}</b> &nbsp;·&nbsp; CSAT weeks: ${G.csatWeeks.join(', ')||'—'} &nbsp;·&nbsp; <span style="color:var(--t3)">build ${BUILD_ID}</span>`;
   // Lưu ý: rp-meta bên dưới ghi đè cả cụm (gồm #rp-week-lbl), nên KHÔNG set rp-week-lbl ở đây
   // (nếu set sẽ lỗi null ở lần parse thứ 2 → renderAll đứt giữa chừng → bảng lệch với data).
   document.getElementById('rp-meta').innerHTML=`Action Update · <b>W${W}</b> &nbsp;·&nbsp; đang có <b>${G.curAgents.length}</b> agents · CSAT: ${G.csatWeeks.join(', ')||'—'}`;
